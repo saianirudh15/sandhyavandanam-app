@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Sandhyavandanam</string>
+    <string name="title_activity_main">Sandhyavandanam</string>
+    <string name="package_name">com.saianirudh.sandhyavandanam</string>
+    <string name="custom_url_scheme">com.saianirudh.sandhyavandanam</string>
+</resources>

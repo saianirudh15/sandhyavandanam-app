@@ -1,0 +1,68 @@
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400&family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-serif: "Cormorant Garamond", ui-serif, Georgia, serif;
+}
+
+body {
+  font-family: var(--font-sans);
+  background-color: #0f172a; /* Slate 900 for the outer desktop background to make mobile frame pop */
+  color: #1e293b;
+}
+
+/* Hide scrollbar for clean app feel */
+::-webkit-scrollbar {
+  display: none;
+}
+
+* {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;     /* Firefox */
+}
+/* ==========================================
+   HIGH CONTRAST (TEXT ONLY)
+   ========================================== */
+
+/* Light mode */
+.hc-text h1,
+.hc-text h2,
+.hc-text h3,
+.hc-text h4,
+.hc-text h5,
+.hc-text h6,
+.hc-text p,
+.hc-text span,
+.hc-text button,
+.hc-text label,
+.hc-text li {
+  text-shadow: 0 0 0.15px currentColor;
+}
+
+/* Darken muted text */
+.hc-text .text-slate-300 {
+  color: #6b7280 !important;
+}
+
+.hc-text .text-slate-400 {
+  color: #4b5563 !important;
+}
+
+.hc-text .text-slate-500 {
+  color: #374151 !important;
+}
+
+.hc-text .text-slate-600 {
+  color: #1f2937 !important;
+}
+
+/* Dark mode */
+.dark .hc-text .text-slate-300,
+.dark .hc-text .text-slate-400,
+.dark .hc-text .text-slate-500,
+.dark .hc-text .text-slate-600 {
+  color: #f8fafc !important;
+}
