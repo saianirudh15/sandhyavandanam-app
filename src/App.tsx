@@ -13,6 +13,8 @@ import {
 import { App as CapApp } from '@capacitor/app';
 import { STEPS, Language } from './data';
 
+const MIN_SANDHYA_DURATION = 5 * 60 * 1000; // 5 minutes
+
 const TIMES = [
   { id: 'prata', title: 'Pratah Sandhya', desc: 'Morning Procedure', icon: Sunrise, gradient: 'from-orange-500 via-orange-600 to-red-600', time: 'Sunrise', borderClass: 'border-l-8 border-orange-500', iconBg: 'bg-orange-100 text-orange-500' },
   { id: 'madhyahnika', title: 'Madhyanika Sandhya', desc: 'Mid-day Procedure', icon: Sun, gradient: 'from-amber-400 to-orange-500', time: 'Noon', borderClass: 'border-l-8 border-yellow-400', iconBg: 'bg-yellow-100 text-yellow-600' },
@@ -64,6 +66,7 @@ export default function App() {
   const [previousView, setPreviousView] = useState(view);
 
   const [selectedTimeId, setSelectedTimeId] = useState<string | null>(null);
+  const [focusedStepIndex, setFocusedStepIndex] = useState<number>(0);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   
   // Settings State
@@ -124,35 +127,54 @@ export default function App() {
     setSelectedTimeId(nextTimeId);
 
     if (!isPopState) {
+      const fromSettings =
+        isDrawerOpen &&
+        (
+          nextView === "history" ||
+          nextView === "statistics" ||
+          nextView === "calendar"
+        );
+
       window.history.pushState(
-        { view: nextView, selectedTimeId: nextTimeId },
+        {
+          view: nextView,
+          selectedTimeId: nextTimeId,
+          fromSettings
+        },
         ""
       );
     }
   };
   useEffect(() => {
-    // Initial State Setup
-    window.history.replaceState({ view: 'home', selectedTimeId: null }, '');
+    window.history.replaceState(
+      { view: "home", selectedTimeId: null },
+      ""
+    );
 
     const handlePopState = (event: PopStateEvent) => {
       const state = event.state;
+
       if (state && state.view) {
         setView(state.view);
-        setSelectedTimeId(state.selectedTimeId);
+        setSelectedTimeId(state.selectedTimeId ?? null);
       } else {
-        setView('home');
+        setView("home");
         setSelectedTimeId(null);
       }
+
+      setIsDrawerOpen(false);
     };
 
-    window.addEventListener('popstate', handlePopState);
+    window.addEventListener("popstate", handlePopState);
+
     return () => {
-      window.removeEventListener('popstate', handlePopState);
+      window.removeEventListener("popstate", handlePopState);
     };
   }, []);
 
   // Handle Android device physical/gesture back buttons
   useEffect(() => {
+
     let listener: any = null;
     let cancelled = false;
 
@@ -161,7 +183,17 @@ export default function App() {
         const backListener = await CapApp.addListener('backButton', () => {
           if (isDrawerOpen) {
             setIsDrawerOpen(false);
-          } else if (view !== 'home') {
+          } else if (
+            view === "history" ||
+            view === "statistics" ||
+            view === "calendar"
+          ) {
+            window.history.back();
+
+            setTimeout(() => {
+              setIsDrawerOpen(true);
+            }, 100);
+          } else if (view !== "home") {
             window.history.back();
           } else {
             CapApp.exitApp();
@@ -321,7 +353,10 @@ export default function App() {
                 time={selectedTime}
                 language={language}
                 onBack={() => window.history.back()}
-                onStart={() => navigateTo('step', selectedTimeId)}
+                onStart={(stepIndex = 0) => {
+                  setFocusedStepIndex(Math.max(0, stepIndex));
+                  navigateTo("step", selectedTimeId);
+                }}
                 onOpenDrawer={() => setIsDrawerOpen(true)}
                 compactView={compactView}
                 fontSize={fontSize}
@@ -331,7 +366,11 @@ export default function App() {
             {view === 'step' && selectedTime && (
               <StepSequenceView 
                 key="step" 
-                time={selectedTime} 
+                time={selectedTime}
+                timeId={selectedTimeId!}
+                startIndex={
+                  focusedStepIndex >= 0 ? focusedStepIndex : 0
+                }
                 language={language}
                 fontSize={fontSize}
                 highContrast={highContrast}
@@ -370,8 +409,7 @@ export default function App() {
               <History
                 discipline={discipline}
                 onBack={() => {
-                  setView("home");
-                  setSelectedTimeId(null);   // if you use selectedTimeId
+                  window.history.back();
 
                   setTimeout(() => {
                     setIsDrawerOpen(true);
@@ -384,8 +422,7 @@ export default function App() {
               <Statistics
                 discipline={discipline}
                 onBack={() => {
-                  setView("home");
-                  setSelectedTimeId(null);   // if you use selectedTimeId
+                  window.history.back();
 
                   setTimeout(() => {
                     setIsDrawerOpen(true);
@@ -398,8 +435,7 @@ export default function App() {
               <CalendarPage
                 discipline={discipline}
                 onBack={() => {
-                  setView("home");
-                  setSelectedTimeId(null);   // if you use selectedTimeId
+                  window.history.back();
 
                   setTimeout(() => {
                     setIsDrawerOpen(true);
@@ -597,8 +633,17 @@ function ProcedureView({
   compactView,
   fontSize,
   highContrast,
-}: { time: any, language: Language, onBack: () => void, onStart: () => void, onOpenDrawer: () => void, compactView: boolean; fontSize: number;
-                                                                                                                             highContrast: boolean; key?: string }) {
+}: {
+  time: any;
+  language: Language;
+  onBack: () => void;
+  onStart: (stepIndex?: number) => void;
+  onOpenDrawer: () => void;
+  compactView: boolean;
+  fontSize: number;
+  highContrast: boolean;
+  key?: string;
+}){
   const Icon = time.icon;
   const filteredSteps = STEPS.filter(s => !s.timeOnly || s.timeOnly.includes(time.id));
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -684,7 +729,7 @@ function ProcedureView({
                       <div className="border-t border-orange-100 dark:border-orange-500/20 px-4 pb-4 pt-4">
                         <div className="mb-4">
                           <h5 className="mb-1 font-bold uppercase tracking-widest text-orange-500" style={{ fontSize: `${Math.max(9, fontSize - 6)}px` }}>Instruction</h5>
-                          <p className="font-medium leading-relaxed text-slate-600 dark:text-slate-400" style={{ fontSize: `${Math.max(10, fontSize - 3)}px` }}>{step.instruction[language]}</p>
+                          <p className="font-medium leading-relaxed text-slate-600 dark:text-slate-400" style={{ fontSize: `${Math.max(10, fontSize - 3)}px` }}>{step?.instruction?.[language] ?? ""}</p>
                         </div>
                         <div className="rounded-xl bg-white dark:bg-slate-900 p-4 ring-1 ring-orange-100 dark:ring-orange-500/20">
                           <h5 className="mb-2 font-bold uppercase tracking-widest text-orange-400" style={{ fontSize: `${Math.max(9, fontSize - 6)}px` }}>Mantra</h5>
@@ -698,7 +743,10 @@ function ProcedureView({
                           </p>
                         </div>
                         <button 
-                          onClick={(e) => { e.stopPropagation(); onStart(); }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onStart(i);
+                          }}
                           className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-orange-500 py-2.5 font-bold text-white shadow-sm transition-transform active:scale-95 animate-pulse"
                           style={{ fontSize: `${Math.max(10, fontSize - 4)}px` }}
                         >
@@ -729,21 +777,98 @@ function ProcedureView({
 
 function StepSequenceView({
   time,
+  timeId,
   language,
+  startIndex,
   fontSize,
   highContrast,
   onBack,
   onFinish,
-}: { time: any, language: Language, fontSize: number, highContrast: boolean, onBack: () => void, onFinish: () => void; key?: string }) {
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const filteredSteps = STEPS.filter(s => !s.timeOnly || s.timeOnly.includes(time.id));
-  const step = filteredSteps[currentIndex];
+}: {
+  time: any;
+  timeId: string;
+  language: Language;
+  startIndex: number;
+  fontSize: number;
+  highContrast: boolean;
+  onBack: () => void;
+  onFinish: () => void;
+  key?: string;
+}) {
+ const [currentIndex, setCurrentIndex] = useState(0);
+
+ useEffect(() => {
+   setCurrentIndex(Math.max(0, startIndex));
+ }, [startIndex]);
+
+  const [procedureStartTime] = useState(() => Date.now());
+
+  const filteredSteps = STEPS.filter(
+    s => !s.timeOnly || s.timeOnly.includes(time.id)
+  );
+
+  const safeIndex = Math.min(
+    Math.max(0, currentIndex),
+    Math.max(0, filteredSteps.length - 1)
+  );
+
+  const step = filteredSteps[safeIndex];
+
+  console.log("time.id =", time.id);
+  console.log("startIndex =", startIndex);
+  console.log("currentIndex =", currentIndex);
+  console.log("safeIndex =", safeIndex);
+  console.log("filteredSteps.length =", filteredSteps.length);
+  console.log("step =", step);
+
+  if (!step) {
+    console.error("Step is undefined", {
+      currentIndex,
+      filteredStepsLength: filteredSteps.length,
+      timeId: time.id,
+    });
+
+    return (
+      <div className="flex h-full items-center justify-center bg-orange-50 dark:bg-slate-900">
+        <div className="text-center">
+          <h2 className="text-xl font-bold text-red-600">
+            Invalid Step
+          </h2>
+          <p className="mt-2 text-slate-600 dark:text-slate-300">
+            Please go back and reopen the procedure.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+
   
   const handleNext = () => {
-    if (currentIndex < filteredSteps.length - 1) setCurrentIndex(prev => prev + 1);
-    else onFinish();
-  };
+    if (currentIndex < filteredSteps.length - 1) {
+      setCurrentIndex(prev => prev + 1);
+      return;
+    }
 
+    const timeSpent = Date.now() - procedureStartTime;
+
+    if (timeSpent < MIN_SANDHYA_DURATION) {
+      const remainingMs = MIN_SANDHYA_DURATION - timeSpent;
+
+      // Convert remaining time accurately
+      const totalSeconds = Math.ceil(remainingMs / 1000);
+      const remainingMinutes = Math.floor(totalSeconds / 60);
+      const remainingSeconds = totalSeconds % 60;
+
+      alert(
+        `Please spend at least 5 minutes completing the Sandhya.\n\nTime remaining: ${remainingMinutes} minute${remainingMinutes !== 1 ? "s" : ""} ${remainingSeconds} second${remainingSeconds !== 1 ? "s" : ""}.`
+      );
+
+      return;
+    }
+
+    onFinish();
+  };
   const handlePrev = () => {
     if (currentIndex > 0) setCurrentIndex(prev => prev - 1);
   };
@@ -787,17 +912,22 @@ function StepSequenceView({
                   overflowWrap: "anywhere"
                 }}
               >
-                {step.title[language]}
+                {step?.title?.[language] ?? ""}
               </h2>
               <span className={`mt-3 inline-block rounded-full bg-gradient-to-r ${time.gradient} px-4 py-1.5 text-[10px] font-bold uppercase tracking-widest text-white shadow-sm`}>
-                {step.type[language]}
+                {step?.type?.[language] ?? ""}
               </span>
             </div>
 
             <div className="relative flex flex-col rounded-[2rem] bg-white dark:bg-slate-800 p-6 shadow-sm ring-1 ring-slate-100 dark:ring-slate-700 w-full mb-8">
               <div className="mb-4 relative w-full pr-2">
                 <h4 className="mb-2 text-xs font-bold uppercase tracking-widest text-slate-400">Instruction</h4>
-                <p className="font-medium text-slate-700 dark:text-slate-300 leading-relaxed" style={{ fontSize: `${fontSize - 2}px` }}>{step.instruction[language]}</p>
+                <p
+                  className="font-medium text-slate-700 dark:text-slate-300 leading-relaxed"
+                  style={{ fontSize: `${fontSize - 2}px` }}
+                >
+                  {step?.instruction?.[language] ?? ""}
+                </p>
               </div>
               
               <div className="rounded-2xl bg-orange-50 dark:bg-slate-900 p-5 ring-1 ring-orange-100 dark:ring-slate-700 relative w-full overflow-hidden flex flex-col mt-4">
