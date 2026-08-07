@@ -8,7 +8,9 @@ import { VitePWA } from 'vite-plugin-pwa';
 export default defineConfig(({mode}) => {
   const env = loadEnv(mode, '.', '');
   return {
-    base: "/sandhyavandanam-app/",
+    base: mode === "production" && process.env.CAPACITOR !== "true"
+      ? "/sandhyavandanam-app/"
+      : "/",
     plugins: [
       react(), 
       tailwindcss(),
